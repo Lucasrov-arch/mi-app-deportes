@@ -3,29 +3,53 @@ import sqlite3
 import datetime
 from urllib.parse import quote
 
-# 1. CONFIGURACIÓN DE LA PÁGINA (Estilo Móvil)
+# 1. CONFIGURACIÓN Y ESTILO VISUAL MÓVIL
 st.set_page_config(page_title="MatchDeporte", page_icon="⚽", layout="centered")
 
-# 2. CONEXIÓN AUTOMÁTICA A LA BASE DE DATOS
-# SQLite crea un archivo local automáticamente. No requiere configuración externa.
+# Inyección de CSS para que la app no parezca una página de Excel
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f0f2f6;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 20px;
+        height: 3em;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        font-weight: bold;
+    }
+    .event-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
+        border-left: 5px solid #007bff;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+    .sport-tag {
+        background-color: #e1f5fe;
+        color: #01579b;
+        padding: 4px 12px;
+        border-radius: 10px;
+        font-size: 0.8em;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 2. BASE DE DATOS (Mantenemos la misma lógica)
 def conectar_db():
     conn = sqlite3.connect("eventos_deportivos.db")
     cursor = conn.cursor()
-    # Tabla para almacenar los partidos y eventos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS eventos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo TEXT,
-            titulo TEXT,
-            deporte TEXT,
-            descripcion TEXT,
-            ubicacion TEXT,
-            fecha TEXT,
-            hora TEXT,
-            costo TEXT,
-            cupos_totales INTEGER,
-            cupos_disponibles INTEGER,
-            fb_link TEXT
+            tipo TEXT, titulo TEXT, deporte TEXT, descripcion TEXT, 
+            ubicacion TEXT, fecha TEXT, hora TEXT, costo TEXT, 
+            cupos_totales INTEGER, cupos_disponibles INTEGER, fb_link TEXT
         )
     """)
     conn.commit()
@@ -34,112 +58,63 @@ def conectar_db():
 conn = conectar_db()
 cursor = conn.cursor()
 
-# 3. INTERFAZ DE USUARIO
-st.title("⚽ MatchDeporte & Eventos")
-st.subheader("¡Completa tu equipo o encuentra qué hacer en tu zona!")
+# 3. INTERFAZ MEJORADA
+st.title("⚽ MatchDeporte")
+st.markdown("#### *¡Completar tu equipo nunca fue tan fácil!*")
 
-# Pestañas de navegación
-tab_buscar, tab_crear = st.tabs(["🔍 Buscar Eventos / Partidos", "➕ Publicar Evento"])
+tab_buscar, tab_crear = st.tabs(["🔍 Explorar Partidos", "➕ Crear Actividad"])
 
-# ==========================================
-# PESTAÑA: CREAR EVENTO
-# ==========================================
 with tab_crear:
-    st.header("Organiza una Actividad")
-    
-    # Campo para simplificar la vida si viene de Facebook
-    fb_url = st.text_input("🔗 ¿Tiene un link de Facebook? (Pégalo para referencia)", placeholder="https://facebook.com/events/...")
-    
-    tipo_evento = st.radio("Tipo de Evento:", ["Deporte Amateur (Reclutamiento)", "Evento General (Feria, Concierto, etc.)"])
-    
-    titulo = st.text_input("Título del Evento / Partido", placeholder="Ej: Fútbol 5 - Falta 1 / Feria Gastronómica")
-    
-    deporte = "N/A"
-    cupos = 0
-    if tipo_evento == "Deporte Amateur (Reclutamiento)":
-        deporte = st.selectbox("Selecciona el Deporte:", ["Fútbol", "Pádel", "Básquetbol", "Tenis", "Running", "Otro"])
-        cupos = st.number_input("¿Cuántos jugadores te faltan?", min_value=1, max_value=22, value=1)
-    
-    descripcion = st.text_area("Descripción de la actividad", placeholder="Detalla las reglas, nivel de juego o de qué trata el evento.")
-    
-    st.markdown("📍 **Ubicación**")
-    ubicacion = st.text_input("Dirección o enlace de Google Maps", placeholder="Ej: Complejo Deportivo Norte / Calle Falsa 123")
-    st.caption("Tip: Puedes pegar el enlace directo que te genera la app de Google Maps aquí.")
-    
-    # Fecha y Hora
-    col1, col2 = st.columns(2)
-    with col1:
-        fecha = st.date_input("Fecha del evento", min_value=datetime.date.today())
-    with col2:
-        hora = st.time_input("Hora de inicio")
+    with st.expander("✨ Pulsa aquí para crear un evento", expanded=True):
+        tipo_evento = st.segmented_control("Categoría:", ["Deporte", "General"], default="Deporte")
         
-    # Costo
-    es_gratis = st.checkbox("¿Es gratis?")
-    costo = "Gratis"
-    if not es_gratis:
-        costo = st.text_input("Precio o Costo por persona", placeholder="Ej: $5 por persona / Entrada libre")
+        col_t1, col_t2 = st.columns([2, 1])
+        with col_t1:
+            titulo = st.text_input("¿Qué vamos a jugar?", placeholder="Ej: 5 vs 5 en 'El Templo'")
+        with col_t2:
+            deporte = st.selectbox("Deporte", ["Fútbol", "Pádel", "Básquet", "Tenis", "Otro"]) if tipo_evento == "Deporte" else "N/A"
+        
+        descripcion = st.text_area("Notas (Nivel, reglas, etc.)")
+        
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            fecha = st.date_input("Día", min_value=datetime.date.today())
+            ubicacion = st.text_input("📍 Lugar (Dirección o Maps)")
+        with col_f2:
+            hora = st.time_input("Hora")
+            cupos = st.number_input("¿Cuántos faltan?", 1, 20) if tipo_evento == "Deporte" else 0
 
-    # Botón Guardar
-    if st.button("🚀 Publicar Evento"):
-        if titulo and ubicacion:
-            cursor.execute("""
-                INSERT INTO eventos (tipo, titulo, deporte, descripcion, ubicacion, fecha, hora, costo, cupos_totales, cupos_disponibles, fb_link)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (tipo_evento, titulo, deporte, descripcion, ubicacion, str(fecha), str(hora), costo, cupos, cupos, fb_url))
+        fb_url = st.text_input("🔗 Link de Facebook (Opcional)")
+        
+        if st.button("🚀 PUBLICAR AHORA"):
+            cursor.execute("INSERT INTO eventos (tipo, titulo, deporte, descripcion, ubicacion, fecha, hora, costo, cupos_totales, cupos_disponibles, fb_link) VALUES (?,?,?,?,?,?,?,?,?,?,?)", 
+                           (tipo_evento, titulo, deporte, descripcion, ubicacion, str(fecha), str(hora), "Consultar", cupos, cupos, fb_url))
             conn.commit()
-            st.success("🎉 ¡Evento publicado con éxito en tu localidad!")
-        else:
-            st.error("Por favor, completa al menos el Título y la Ubicación.")
+            st.balloons()
+            st.success("¡Publicado! Ve a la pestaña 'Explorar' para verlo.")
 
-# ==========================================
-# PESTAÑA: BUSCAR EVENTOS
-# ==========================================
 with tab_buscar:
-    st.header("Eventos Disponibles")
+    st.write("### Próximas actividades cerca de ti")
     
-    # Filtros de búsqueda
-    filtro_tipo = st.selectbox("Filtrar por categoría:", ["Todos", "Deporte Amateur (Reclutamiento)", "Evento General (Feria, Concierto, etc.)"])
-    
-    query = "SELECT * FROM eventos WHERE 1=1"
-    parametros = []
-    
-    if filtro_tipo != "Todos":
-        query += " AND tipo = ?"
-        parametros.append(filtro_tipo)
+    cursor.execute("SELECT * FROM eventos ORDER BY fecha ASC")
+    for ev in cursor.fetchall():
+        # Tarjeta visual con HTML/CSS
+        st.markdown(f"""
+            <div class="event-card">
+                <span class="sport-tag">{ev[3] if ev[1] == 'Deporte' else 'Evento'}</span>
+                <h3 style='margin-top: 10px;'>{ev[2]}</h3>
+                <p>📅 {ev[6]} a las {ev[7]}</p>
+                <p>📍 {ev[5]}</p>
+                <p style='color: #555;'>{ev[4]}</p>
+                <hr>
+                <p><b>👥 Buscamos: {ev[10]} personas</b></p>
+            </div>
+        """, unsafe_allow_html=True)
         
-    cursor.execute(query, parametros)
-    resultados = cursor.fetchall()
-    
-    if not resultados:
-        st.info("No hay eventos activos creados en este momento. ¡Sé el primero en crear uno!")
-    else:
-        for ev in resultados:
-            # Estructura de datos de la base: ev[0]=id, ev[1]=tipo, ev[2]=titulo, ev[3]=deporte...
-            with st.container():
-                st.markdown(f"### {ev[2]}")
-                if ev[1] == "Deporte Amateur (Reclutamiento)":
-                    st.markdown(f"🏅 **Deporte:** {ev[3]} | 👥 **Cupos que faltan:** {ev[10]}")
-                
-                st.write(f"📝 {ev[4]}")
-                st.write(f"📅 **Fecha:** {ev[6]} | ⏰ **Hora:** {ev[7]}")
-                st.write(f"💰 **Costo:** {ev[8]}")
-                
-                # Enlace de Google Maps limpio
-                st.write(f"📍 **Lugar:** {ev[5]}")
-                
-                # Función: Agregar a Google Calendar de forma gratuita mediante URL dinámica
-                formato_fecha = ev[6].replace("-", "")
-                formato_hora = ev[7].replace(":", "")[0:4]
-                # Enlace simplificado de Google Calendar en formato web público
-                cal_url = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={quote(ev[2])}&dates={formato_fecha}T{formato_hora}00Z/{formato_fecha}T{formato_hora}00Z&details={quote(ev[4])}&location={quote(ev[5])}"
-                
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    st.colors = "primary"
-                    st.markdown(f"[📅 Añadir a Google Calendar]({cal_url})")
-                
-                if ev[11]: # Si tiene link de Facebook
-                    with col_btn2:
-                        st.markdown(f"[🔗 Ver en Facebook]({ev[11]})")
-                
-                st.markdown("---")
+        # Botones de acción integrados
+        cal_url = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={quote(ev[2])}&details={quote(ev[4])}&location={quote(ev[5])}"
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            st.link_button("📅 Agendar", cal_url)
+        with col_b2:
+            if ev[11]: st.link_button("🔵 Facebook", ev[11])
