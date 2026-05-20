@@ -68,7 +68,7 @@ cursor = conn.cursor()
 
 # 3. INTERFACE MEJORADA CON ALTO CONTRASTE
 st.title("🏟️ SquadUp")
-st.markdown("### *¡El que no salta, no tiene equipo!*")
+st.markdown("### *Don't just watch. Join the game!*")
 
 tab_find, tab_create = st.tabs(["🔍 FIND SQUADS", "📣 POST A GAME"])
 
