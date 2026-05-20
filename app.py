@@ -4,33 +4,33 @@ import datetime
 from urllib.parse import quote
 import time
 
-# 1. APP CONFIG & DARK THEME
+# 1. APP CONFIG
 st.set_page_config(page_title="SquadUp", page_icon="⚽", layout="centered")
 
 st.markdown("""
     <style>
     .stApp { background-color: #121212; color: #e0e0e0; }
     header[data-testid="stHeader"] { background-color: #74ACDF !important; }
-    h1, h2, h3, h4, h5, p, label { color: #ffffff !important; }
-    .stButton>button {
-        width: 100%; border-radius: 12px; height: 3.5em;
-        background-color: #74ACDF; color: white; font-weight: bold; border: none;
-    }
     .event-card {
         background-color: #1e1e1e; padding: 25px; border-radius: 18px;
-        border-left: 10px solid #74ACDF; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-        margin-bottom: 25px;
+        border-left: 10px solid #74ACDF; margin-bottom: 25px;
     }
-    .sport-tag {
-        background-color: #74ACDF; color: white; padding: 6px 16px; border-radius: 50px; 
-        font-size: 0.8em; font-weight: 800; text-transform: uppercase;
+    .stButton>button {
+        width: 100%; border-radius: 12px; height: 3em;
+        background-color: #74ACDF; color: white; font-weight: bold;
     }
+    .mail-btn {
+        display: inline-block; padding: 10px 20px; border-radius: 8px;
+        text-decoration: none; font-weight: bold; margin: 5px; color: white !important;
+    }
+    .gmail { background-color: #DB4437; }
+    .outlook { background-color: #0078D4; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. DATABASE ENGINE (Updated with Hidden Email)
+# 2. DATABASE
 def get_db():
-    conn = sqlite3.connect("squadup_v6.db")
+    conn = sqlite3.connect("squadup_v7.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
@@ -46,89 +46,74 @@ def get_db():
 conn = get_db()
 cursor = conn.cursor()
 
-# 3. INTERFACE
+# 3. UI
 st.title("🏟️ SquadUp")
-
 selected_tab = st.radio("", ["🔍 BROWSE GAMES", "📣 HOST A MATCH"], horizontal=True, label_visibility="collapsed")
 
-# --- TAB: HOST A MATCH ---
 if selected_tab == "📣 HOST A MATCH":
     st.write("### Host a Match")
     title = st.text_input("Match Title")
-    
     col1, col2 = st.columns(2)
     with col1:
         sport = st.selectbox("Sport", ["Football", "Padel", "Basketball", "Tennis", "Other"])
         date_ev = st.date_input("Date", min_value=datetime.date.today())
-        email = st.text_input("Your Email (Private)", help="This won't be shown publicly. It's only for join confirmations.")
+        email = st.text_input("Your Email (Private)")
     with col2:
         slots = st.number_input("Slots Needed", 1, 22)
         time_ev = st.time_input("Time")
         loc = st.text_input("📍 Location")
     
-    desc = st.text_area("Details")
-    fb = st.text_input("Facebook Link (Optional)")
-
     if st.button("🚀 PUBLISH MATCH"):
         if title and loc and email:
-            cursor.execute("""
-                INSERT INTO events (title, sport, description, location, date, time, slots_needed, fb_link, creator_email) 
-                VALUES (?,?,?,?,?,?,?,?,?)""", 
-                (title, sport, desc, loc, str(date_ev), str(time_ev), slots, fb, email))
+            cursor.execute("INSERT INTO events (title, sport, description, location, date, time, slots_needed, fb_link, creator_email) VALUES (?,?,?,?,?,?,?,?,?)", 
+                           (title, sport, "", loc, str(date_ev), str(time_ev), slots, "", email))
             conn.commit()
             st.balloons()
-            st.success("Match published! Your email is safe and hidden.")
-            time.sleep(2)
-            st.info("Switch to 'Browse Games' to see it.")
-        else:
-            st.error("Title, Location, and Email are required.")
+            st.success("Match Published!")
+            time.sleep(1)
+            st.info("Go to 'Browse' to check it.")
 
-# --- TAB: BROWSE GAMES ---
 else:
     cursor.execute("SELECT * FROM events WHERE slots_needed > 0 ORDER BY date ASC")
-    rows = cursor.fetchall()
-    
-    if not rows:
-        st.info("The stadium is empty. Be the first to host a game!")
-    
-    for row in rows:
+    for row in cursor.fetchall():
         with st.container():
             st.markdown(f"""
                 <div class="event-card">
-                    <span class="sport-tag">{row[2]}</span>
-                    <h2 style='margin-top: 15px;'>{row[1]}</h2>
-                    <p>📅 <b>{row[5]}</b> | ⏰ {row[6]}</p>
-                    <p>📍 {row[4]}</p>
+                    <h2 style='color:white;'>{row[1]}</h2>
+                    <p>📅 {row[5]} | ⏰ {row[6]} | 📍 {row[4]}</p>
                     <h3 style='color:#74ACDF;'>🔥 {row[7]} slots left</h3>
                 </div>
             """, unsafe_allow_html=True)
             
-            # Modal-like logic for Joining
-            with st.expander("🙌 CLICK HERE TO JOIN THIS SQUAD"):
-                st.write("Confirm your attendance:")
-                u_name = st.text_input("First Name", key=f"fn_{row[0]}")
-                u_last = st.text_input("Last Name", key=f"ln_{row[0]}")
-                u_email = st.text_input("Your Email", key=f"em_{row[0]}")
+            with st.expander("🙌 JOIN THIS SQUAD"):
+                u_name = st.text_input("Name", key=f"n_{row[0]}")
+                u_email = st.text_input("Your Email", key=f"e_{row[0]}")
                 
-                if st.button("CONFIRM MY SPOT", key=f"confirm_{row[0]}"):
-                    if u_name and u_last and u_email:
-                        # 1. Update Slots
-                        new_val = row[7] - 1
-                        cursor.execute("UPDATE events SET slots_needed = ? WHERE id = ?", (new_val, row[0]))
+                if st.button("CONFIRM JOIN", key=f"c_{row[0]}"):
+                    if u_name and u_email:
+                        # Update DB
+                        cursor.execute("UPDATE events SET slots_needed = ? WHERE id = ?", (row[7]-1, row[0]))
                         conn.commit()
                         
-                        # 2. Generate Confirmation Emails (mailto links)
-                        # To creator
-                        subject_to_creator = quote(f"SquadUp: {u_name} joined your {row[2]} match!")
-                        body_to_creator = quote(f"Hi!\n\n{u_name} {u_last} ({u_email}) has just joined your match: {row[1]}.\n\nSee you on the pitch!")
-                        mail_url = f"mailto:{row[9]}?subject={subject_to_creator}&body={body_to_creator}"
+                        # Prepare Mail Data
+                        subject = quote(f"SquadUp: {u_name} joined your match!")
+                        body = quote(f"Hi! {u_name} ({u_email}) joined your match: {row[1]}. See you there!")
                         
-                        st.success(f"Great, {u_name}! You're in.")
-                        st.markdown(f"### [✉️ CLICK HERE TO NOTIFY THE HOST]({mail_url})")
-                        st.caption("This will open your email app to send a quick confirmation to the host.")
+                        # Links directos a Webmails
+                        gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={row[9]}&su={subject}&body={body}"
+                        outlook_url = f"https://outlook.office.com/mail/deeplink/compose?to={row[9]}&subject={subject}&body={body}"
                         
-                        # Add to calendar option as well
-                        cal_url = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={quote(row[1])}&location={quote(row[4])}"
-                        st.link_button("📅 ADD TO MY CALENDAR", cal_url)
+                        st.success(f"Excellent {u_name}! Now, notify the host using your favorite service:")
+                        
+                        # Botones visuales
+                        st.markdown(f"""
+                            <div style='text-align: center; margin-top: 10px;'>
+                                <a href='{gmail_url}' target='_blank' class='mail-btn gmail'>Open Gmail</a>
+                                <a href='{outlook_url}' target='_blank' class='mail-btn outlook'>Open Outlook Web</a>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.divider()
+                        st.link_button("📅 Add to Calendar", f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={quote(row[1])}")
                     else:
-                        st.error("Please fill all fields to join.")
+                        st.error("Please fill your name and email.")
